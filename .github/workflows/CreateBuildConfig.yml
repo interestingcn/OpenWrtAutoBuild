@@ -1,0 +1,108 @@
+#=================================================
+# Author:@Meloncn
+# Mail:interestingcn01@gmail.com
+# OpenWrt 基于Github Actions 云编译生成.config配置文件
+#=================================================
+
+name: Create OpenWrt Build Config
+on:
+  workflow_dispatch:
+
+env:
+  TZ: Asia/Shanghai
+
+jobs:
+  Create:
+    runs-on: ubuntu-18.04
+    if: github.event.repository.owner.id == github.event.sender.id
+    name: Create_${{matrix.target}}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [Lienol-mips-withPASSWALL,Lienol-mips-withSSRPLUS,Lean-mips-withSSRPLUS,Lean-mips-withPASSWALL,Lienol-x86]
+
+    steps:
+    - name: 检出项目分支
+      uses: actions/checkout@master
+    
+    - name: 注册全局配置
+      run: |
+        source "${GITHUB_WORKSPACE}/${{matrix.target}}/settings.ini"
+        echo "REPO_URL=${REPO_URL}" >> $GITHUB_ENV
+        echo "REPO_BRANCH=${REPO_BRANCH}" >> $GITHUB_ENV
+        echo "CONFIG_FILE=${CONFIG_FILE}" >> $GITHUB_ENV
+        echo "FEEDS_FILE=${FEEDS_FILE}" >> $GITHUB_ENV
+        echo "DIY_P1_SH=${DIY_P1_SH}" >> $GITHUB_ENV
+        echo "DIY_P2_SH=${DIY_P2_SH}" >> $GITHUB_ENV
+        echo "DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+
+    - name: 创建工作目录
+      run: |
+        sudo timedatectl set-timezone "$TZ"
+        echo "时区设置完成:$TZ"
+        sudo mkdir -p /workdir
+        echo "工作目录创建完成"
+        sudo chown $USER:$GROUPS /workdir
+
+    - name: 克隆目标仓库OpenWRT代码
+      working-directory: /workdir
+      run: |
+        git clone --depth 1 ${{ env.REPO_URL }} -b ${{ env.REPO_BRANCH }} openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+   
+    - name: 导入自定义Feeds文件
+      run: |
+        [ -e ${{matrix.target}}/${{ env.FEEDS_FILE }} ] && mv ${{matrix.target}}/${{ env.FEEDS_FILE }} openwrt/feeds.conf.default
+
+    - name: 执行自定义脚本1
+      run: |
+        chmod +x ${{matrix.target}}/$DIY_P1_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/${{matrix.target}}/$DIY_P1_SH
+
+    - name: 升级预编译软件包
+      run: |
+        cd openwrt
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: 执行自定义脚本2
+      run: |
+        chmod +x ${{matrix.target}}/$DIY_P2_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/${{matrix.target}}/$DIY_P2_SH
+    
+    - name: 导入自定义编译配置文件
+      run: |
+        [ -e ${{matrix.target}}/${{ env.CONFIG_FILE }} ] && mv ${{matrix.target}}/${{ env.CONFIG_FILE }} openwrt/.config
+
+    - name: SSH 连接至远程 VM 实例
+      uses: meloncn/ssh2actions@main
+      env:
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+    - name: 预上传操作
+      run: |
+        cd openwrt/
+        mkdir buildconfig
+        mv .config buildconfig/build-${{matrix.target}}-${{ env.DATE }}.config.txt
+
+    - name: 上传 config文件至Github
+      uses: actions/upload-artifact@master
+      with:
+        name: OpenWrt_${{matrix.target}}_BuildConfig
+        path: openwrt/buildconfig/build-${{matrix.target}}-${{ env.DATE }}.config.txt
+  
+    - name: 上传至分发平台
+      run: |
+        curl -fsSL git.io/file-transfer | sh
+        ./transfer cow --block 2621440 -s -p 64 --no-progress openwrt/buildconfig/build-${{matrix.target}}-${{ env.DATE }}.config.txt 2>&1 | tee cowtransfer.log
+        echo "::warning file=cowtransfer.com::$(cat cowtransfer.log | grep https)"
+        echo "::set-output name=url::$(cat cowtransfer.log | grep https | cut -f3 -d" ")"
+
+        curl -fsSL git.io/file-transfer | sh
+        ./transfer wet -s -p 16 --no-progress openwrt/buildconfig/build-${{matrix.target}}-${{ env.DATE }}.config.txt 2>&1 | tee wetransfer.log
+        echo "::warning file=wetransfer.com::$(cat wetransfer.log | grep https)"
+        echo "::set-output name=url::$(cat wetransfer.log | grep https | cut -f3 -d" ")"
+        

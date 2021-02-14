@@ -1,0 +1,313 @@
+#=================================================
+# Author:@Meloncn
+# Mail:interestingcn01@gmail.com
+# OpenWrt 基于Github Actions 自动化编译程序
+#=================================================
+
+name: Build OpenWrt
+on:
+  workflow_dispatch:
+#  schedule:
+#    - cron: 00 19 * * *
+
+# 全局默认配置项
+env:
+  SSH_ACTIONS: true
+  UPLOAD_BIN_DIR: false
+  UPLOAD_BIN_COWTRANSFER: false
+  UPLOAD_FIRMWARE: true
+  UPLOAD_COWTRANSFER: true
+  UPLOAD_WETRANSFER: false
+  UPLOAD_RELEASE: false
+  DEBUG_MODEL: false
+  FEEDS_FILE: feeds.conf
+  TZ: Asia/Shanghai
+
+
+jobs:
+  Build:
+    runs-on: ubuntu-18.04
+    if: github.event.repository.owner.id == github.event.sender.id
+    name: Build_${{matrix.target}}
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [Lienol-mips-withPASSWALL,Lienol-mips-withSSRPLUS,Lean-mips-withSSRPLUS,Lean-mips-withPASSWALL,Lienol-x86]
+
+    steps:
+    - name: 检出项目分支
+      uses: actions/checkout@master
+    
+    - name: 注册全局配置
+      run: |    
+        source "${GITHUB_WORKSPACE}/${{matrix.target}}/settings.ini"
+        echo "REPO_URL=${REPO_URL}" >> $GITHUB_ENV
+        echo "REPO_BRANCH=${REPO_BRANCH}" >> $GITHUB_ENV
+        echo "SSH_ACTIONS=${SSH_ACTIONS}" >> $GITHUB_ENV
+        echo "UPLOAD_BIN_DIR=${UPLOAD_BIN_DIR}" >> $GITHUB_ENV
+        echo "UPLOAD_BIN_COWTRANSFER=${UPLOAD_BIN_COWTRANSFER}" >> $GITHUB_ENV
+        echo "UPLOAD_FIRMWARE=${UPLOAD_FIRMWARE}" >> $GITHUB_ENV
+        echo "UPLOAD_COWTRANSFER=${UPLOAD_COWTRANSFER}" >> $GITHUB_ENV
+        echo "UPLOAD_WETRANSFER=${UPLOAD_WETRANSFER}" >> $GITHUB_ENV
+        echo "UPLOAD_RELEASE=${UPLOAD_RELEASE}" >> $GITHUB_ENV
+        echo "DEBUG_MODEL=${DEBUG_MODEL}" >> $GITHUB_ENV
+        echo "CONFIG_FILE=${CONFIG_FILE}" >> $GITHUB_ENV
+        echo "FEEDS_FILE=${FEEDS_FILE}" >> $GITHUB_ENV
+        echo "DIY_P1_SH=${DIY_P1_SH}" >> $GITHUB_ENV
+        echo "DIY_P2_SH=${DIY_P2_SH}" >> $GITHUB_ENV
+
+        echo "PORJECT_START_DATE=$(date +"%Y-%m-%d %H:%M")" >> $GITHUB_ENV
+
+    - name: 初始化编译环境
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      if: env.DEBUG_MODEL == 'false' && !cancelled()
+      run: |
+        echo "清理编译环境"
+        docker rmi `docker images -q`
+        sudo rm -rf /swapfile /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc /etc/mysql /etc/php
+        echo "编译环境清理完成"
+        echo "编译环境开始升级"
+        sudo -E apt-get -yqq update
+        echo "编译环境升级完成"
+        echo "开始安装依赖软件"
+        sudo -E apt-get -yqq install $(curl -fsSL git.io/depends-ubuntu-1804)
+        sudo -E apt-get -yqq autoremove --purge
+        sudo -E apt-get -yqq clean
+        echo "编译环境搭建完成"
+        
+    - name: 创建工作目录
+      run: |
+        sudo timedatectl set-timezone "$TZ"
+        echo "时区设置完成:$TZ"
+        sudo mkdir -p /workdir
+        echo "工作目录创建完成"
+        sudo chown $USER:$GROUPS /workdir
+    
+    - name: 服务器存储资源
+      if: (!cancelled())
+      run: |
+          echo "======================="
+          echo "Space usage:"
+          echo "======================="
+          df -hT $PWD
+          echo "======================="
+          df -h
+          echo "======================="
+
+    - name: 克隆目标仓库OpenWRT代码
+      working-directory: /workdir
+      run: |
+        git clone --depth 1 ${{ env.REPO_URL }} -b ${{ env.REPO_BRANCH }} openwrt
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+   
+    - name: 导入自定义Feeds文件
+      run: |
+        [ -e ${{matrix.target}}/${{ env.FEEDS_FILE }} ] && mv ${{matrix.target}}/${{ env.FEEDS_FILE }} openwrt/feeds.conf.default
+  
+    - name: 执行自定义脚本1
+      run: |
+        chmod +x ${{matrix.target}}/$DIY_P1_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/${{matrix.target}}/$DIY_P1_SH
+
+    - name: 升级预编译软件包
+      if: env.DEBUG_MODEL == 'false' && !cancelled()
+      run: |
+        cd openwrt
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: 执行自定义脚本2
+      run: |
+        chmod +x ${{matrix.target}}/$DIY_P2_SH
+        cd openwrt
+        $GITHUB_WORKSPACE/${{matrix.target}}/$DIY_P2_SH
+    
+    - name: 导入自定义编译配置文件
+      run: |
+        [ -e ${{matrix.target}}/${{ env.CONFIG_FILE }} ] && mv ${{matrix.target}}/${{ env.CONFIG_FILE }} openwrt/.config
+
+    - name: SSH 连接至实例
+      uses: meloncn/ssh2actions@main
+      if: (env.SSH_ACTIONS == 'true') || contains(github.event.action, 'ssh')
+      env:
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+
+    - name: 下载编译所需文件
+      id: package
+      if: env.DEBUG_MODEL == 'false' && !cancelled()
+      run: |
+        cd openwrt
+        make defconfig
+        make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
+
+    - name: 开始编译
+      id: compile
+      if: env.DEBUG_MODEL == 'false' && !cancelled()
+      run: |
+        echo "COMPILE_START_DATE=$(date +"%Y-%m-%d %H:%M")" >> $GITHUB_ENV
+
+        cd openwrt
+        echo -e "$(nproc) 核心编译"
+        make -j$(nproc) || make -j1 V=s
+        echo "::set-output name=status::success"
+        grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
+        [ -s DEVICE_NAME ] && echo "DEVICE_NAME=$(cat DEVICE_NAME)" >> $GITHUB_ENV
+        echo "FILE_DATE=$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+
+        echo "COMPILE_END_DATE=$(date +"%Y-%m-%d %H:%M")" >> $GITHUB_ENV
+        
+    - name: 服务器存储资源
+      if: (!cancelled())
+      run: |
+          echo "======================="
+          echo "Space usage:"
+          echo "======================="
+          df -hT $PWD
+          echo "======================="
+          df -h
+          echo "======================="
+
+    - name: 上传 BIN 目录至Github
+      uses: actions/upload-artifact@master
+      if: env.DEBUG_MODEL == 'false' && steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
+      with:
+        name: OpenWrt_BIN_DIR_${{matrix.target}}_${{ env.DEVICE_NAME }}_${{ env.FILE_DATE }}
+        path: openwrt/bin
+
+    - name:  打包 BIN 目录文件
+      id: bintar
+      if: env.DEBUG_MODEL == 'false' && steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
+      run: |
+        cd openwrt/bin/
+        tar -cvPf  OpenWrt_BIN_DIR_${{matrix.target}}_${{ env.DEVICE_NAME }}_${{ env.FILE_DATE }}.tar ./
+        mv OpenWrt_BIN_DIR_${{matrix.target}}_${{ env.DEVICE_NAME }}_${{ env.FILE_DATE }}.tar ..
+        echo "::set-output name=status::success"
+
+    - name: 管理发布文件
+      id: organize
+      if: env.DEBUG_MODEL == 'false' && env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      run: |
+        cd openwrt/bin/targets/*/*
+        touch info.txt
+        echo "====================================================" >> info.txt
+        echo "" >> info.txt
+        echo "项目启动时间:${{ env.PORJECT_START_DATE }}" >> info.txt
+        echo "编译开始时间:${{ env.COMPILE_START_DATE }}" >> info.txt
+        echo "编译结束时间:${{ env.COMPILE_END_DATE }}" >> info.txt
+        echo "编译使用CPU核心数:$(nproc)" >> info.txt
+        echo "所属Jobs:${{matrix.target}}" >> info.txt
+        echo "面向设备名称:${{ env.DEVICE_NAME }}" >> info.txt
+        echo "OpenWRT仓库地址:${{ env.REPO_URL }}" >> info.txt
+        echo "编译使用分支:${{ env.REPO_BRANCH }}" >> info.txt
+        echo "项目设置文件:/${{matrix.target}}/settings.ini" >> info.txt
+        echo "" >> info.txt
+        echo "====================================================" >> info.txt
+        echo "" >> info.txt
+        echo "Feeds源" >> info.txt
+        echo "$(cat feeds.buildinfo)" >> info.txt
+        echo "" >> info.txt
+        echo "====================================================" >> info.txt
+        echo "" >> info.txt
+        echo "SHA256校验:" >> info.txt
+        echo "$(cat sha256sums)" >> info.txt
+        echo "" >> info.txt
+        echo "====================================================" >> info.txt
+        echo "软件包列表:" >> info.txt
+        echo "$(cat *.manifest)" >> info.txt
+        
+        mv config.buildinfo build.config.txt
+        rm -rf packages
+        rm -rf *.manifest
+        rm version.buildinfo
+        rm sha256sums
+        rm feeds.buildinfo
+        
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "::set-output name=status::success"
+
+    - name: 上传 固件 至Github
+      uses: actions/upload-artifact@main
+      if: env.DEBUG_MODEL == 'false' && env.UPLOAD_FIRMWARE == 'true' && steps.organize.outputs.status == 'success' && !cancelled()
+      with:
+        name: OpenWrt_firmware_${{matrix.target}}_${{ env.DEVICE_NAME }}_${{ env.FILE_DATE }}
+        path: ${{ env.FIRMWARE }}
+
+    - name: 创建TAG标签
+      id: tag
+      if: env.DEBUG_MODEL == 'false' && env.UPLOAD_RELEASE == 'true' && !cancelled()
+      run: |
+        echo "::set-output name=release_tag::${{matrix.target}}_${{ env.DEVICE_NAME }}_$(date +"%Y.%m.%d-%H%M")"
+        touch release.txt
+        echo "项目启动时间:${{ env.PORJECT_START_DATE }}" >> release.txt
+        echo "编译开始时间:${{ env.COMPILE_START_DATE }}" >> release.txt
+        echo "编译结束时间:${{ env.COMPILE_END_DATE }}" >> release.txt
+        echo "所属Jobs:${{matrix.target}}" >> release.txt
+        echo "面向设备名称:${{ env.DEVICE_NAME }}" >> release.txt
+        echo "::set-output name=status::success"
+    
+    - name: 发布Release
+      uses: softprops/action-gh-release@v1
+      if: env.DEBUG_MODEL == 'false' && env.UPLOAD_RELEASE == 'true' && steps.tag.outputs.status == 'success' && !cancelled()
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        body_path: release.txt
+        files: ${{ env.FIRMWARE }}/*
+
+    - name: 预上传 BIN 目录至第三方
+      if: env.DEBUG_MODEL == 'false' && steps.bintar.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
+      run: |
+        mv openwrt/OpenWrt_BIN_DIR_${{matrix.target}}_${{ env.DEVICE_NAME }}_${{ env.FILE_DATE }}.tar ${{ env.FIRMWARE }}/
+        echo "移动 OpenWrt_BIN_DIR_${{matrix.target}}_${{ env.DEVICE_NAME }}_${{ env.FILE_DATE }}.tar 到 ${{ env.FIRMWARE }} 文件夹等待上传"
+        
+    - name: 上传至cowtransfer
+      id: cowtransfer
+      if: env.DEBUG_MODEL == 'false' && steps.organize.outputs.status == 'success' && env.UPLOAD_COWTRANSFER == 'true' && !cancelled()
+      run: |
+        curl -fsSL git.io/file-transfer | sh
+        ./transfer cow --block 2621440 -s -p 64 --no-progress ${{ env.FIRMWARE }} 2>&1 | tee cowtransfer.log
+        echo "::warning file=cowtransfer.com::$(cat cowtransfer.log | grep https)"
+        echo "::set-output name=url::$(cat cowtransfer.log | grep https | cut -f3 -d" ")"
+
+    - name: 上传至WeTransfer
+      id: wetransfer
+      if: env.DEBUG_MODEL == 'false' && steps.organize.outputs.status == 'success' && env.UPLOAD_WETRANSFER == 'true' && !cancelled()
+      run: |
+        curl -fsSL git.io/file-transfer | sh
+        ./transfer wet -s -p 16 --no-progress ${{ env.FIRMWARE }} 2>&1 | tee wetransfer.log
+        echo "::warning file=wetransfer.com::$(cat wetransfer.log | grep https)"
+        echo "::set-output name=url::$(cat wetransfer.log | grep https | cut -f3 -d" ")"
+
+  CleanUselessData:
+    needs: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Clean Release
+      uses: dev-drprasad/delete-older-releases@v0.1.0
+      with:
+        keep_latest: 150
+        delete_tags: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Clean Artifacts
+      uses: c-hive/gha-remove-artifacts@v1
+      with:
+        age: '30 day'
+        skip-recent: 2
+
+    - name: Clean workflow runs
+      uses: meloncn/delete-workflow-runs@main
+      with:
+        retain_days: 30
+        keep_minimum_runs: 1
+        
+        

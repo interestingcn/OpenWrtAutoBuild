@@ -1,0 +1,35 @@
+#=================================================
+# Author:@Meloncn
+# Mail:interestingcn01@gmail.com
+# OpenWrt 清理全部编译后产生的历史数据
+#=================================================
+name: Reset
+
+on:
+  workflow_dispatch:
+  
+jobs:
+  ResetData:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: Reset Release
+      uses: dev-drprasad/delete-older-releases@v0.1.0
+      with:
+        keep_latest: 0
+        delete_tags: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Reset Artifacts
+      uses: c-hive/gha-remove-artifacts@v1
+      with:
+        age: '0 day'
+        skip-recent: 0
+
+    - name: Reset workflow runs
+      uses: meloncn/delete-workflow-runs@main
+      with:
+        retain_days: 1
+        keep_minimum_runs: 1
