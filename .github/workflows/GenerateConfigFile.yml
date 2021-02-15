@@ -85,23 +85,18 @@ jobs:
       run: |
         cd openwrt/
         mkdir buildconfig
-        mv .config buildconfig/build-${{matrix.target}}-${{ env.DATE }}.config.txt
+        mv .config buildconfig/${{matrix.target}}-${{ env.DATE }}-build.config
 
     - name: 上传 config文件至Github
       uses: actions/upload-artifact@master
       with:
         name: OpenWrt_${{matrix.target}}_BuildConfig
-        path: openwrt/buildconfig/build-${{matrix.target}}-${{ env.DATE }}.config.txt
+        path: openwrt/buildconfig/${{matrix.target}}-${{ env.DATE }}-build.config
   
     - name: 上传至分发平台
       run: |
         curl -fsSL git.io/file-transfer | sh
-        ./transfer cow --block 2621440 -s -p 64 --no-progress openwrt/buildconfig/build-${{matrix.target}}-${{ env.DATE }}.config.txt 2>&1 | tee cowtransfer.log
-        echo "::warning file=cowtransfer.com::$(cat cowtransfer.log | grep https)"
-        echo "::set-output name=url::$(cat cowtransfer.log | grep https | cut -f3 -d" ")"
-
-        curl -fsSL git.io/file-transfer | sh
-        ./transfer wet -s -p 16 --no-progress openwrt/buildconfig/build-${{matrix.target}}-${{ env.DATE }}.config.txt 2>&1 | tee wetransfer.log
+        ./transfer wet -s -p 16 --no-progress openwrt/buildconfig/${{matrix.target}}-${{ env.DATE }}-build.config 2>&1 | tee wetransfer.log
         echo "::warning file=wetransfer.com::$(cat wetransfer.log | grep https)"
         echo "::set-output name=url::$(cat wetransfer.log | grep https | cut -f3 -d" ")"
         
