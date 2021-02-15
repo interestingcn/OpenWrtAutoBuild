@@ -4,7 +4,7 @@
 # OpenWrt 基于Github Actions 云编译生成.config配置文件
 #=================================================
 
-name: Create OpenWrt Build Config
+name: Generate Config File
 on:
   workflow_dispatch:
 
