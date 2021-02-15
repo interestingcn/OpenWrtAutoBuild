@@ -19,8 +19,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [Lienol-mips-withPASSWALL,Lienol-mips-withSSRPLUS,Lean-mips-withSSRPLUS,Lean-mips-withPASSWALL,Lienol-x86]
-
+        # target: [Lienol-mips-withPASSWALL,Lienol-mips-withSSRPLUS,Lean-mips-withSSRPLUS,Lean-mips-withPASSWALL,Lienol-x86]
+        target: [Lienol-mips-withPASSWALL]
     steps:
     - name: 检出项目分支
       uses: actions/checkout@master
