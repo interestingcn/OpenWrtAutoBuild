@@ -1,15 +1,14 @@
 #!/bin/bash
 #=================================================
-# Lisence: MIT
-# Author: @P3TERX，@Meloncn
-# OpenWrt Starting 固件编译自动化程序
+# Author: @Meloncn
+# OpenWrtAutoBuild 固件编译自动化程序
 #=================================================
 #feeds 更新并安装完毕后执行此脚本
 # 
-# 此脚本执行时所作位置：/home/runner/work/openwrt-newifi3/openwrt-newifi3/openwrt
+# 此脚本执行时所作位置：/home/runner/work/OpenWrtAutoBuild/OpenWrtAutoBuild/openwrt
 # 在克隆目标项目目录内
 #
-#插件位置：/home/runner/work/openwrt-newifi3/openwrt-newifi3/openwrt/package/lean/luci-theme-argon
+# 插件位置：/home/runner/work/OpenWrtAutoBuild/OpenWrtAutoBuild/openwrt/package/lean/luci-theme-argon
 #=================================================
 
 # 脚本当前执行目录
