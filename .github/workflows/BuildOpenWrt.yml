@@ -153,7 +153,7 @@ jobs:
 
         cd openwrt
         echo -e "$(nproc) 核心编译"
-        make -j$(nproc) V=s
+        make -j$(nproc)
         echo "::set-output name=status::success"
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=$(cat DEVICE_NAME)" >> $GITHUB_ENV
