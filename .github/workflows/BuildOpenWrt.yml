@@ -32,14 +32,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [Lienol-mips-withPASSWALL,Lienol-mips-withSSRPLUS,Lean-mips-withSSRPLUS,Lean-mips-withPASSWALL,Lienol-x86]
+        target: [Newifi3-Lienol-withPASSWALL,Newifi3-Lienol-withSSRPLUS,Newifi3-Lean-withPASSWALL,Newifi3-Lean-withSSRPLUS,Lienol-x86]
 
     steps:
     - name: 检出项目分支
       uses: actions/checkout@master
     
     - name: 注册全局配置
-      run: |    
+      run: |
         source "${GITHUB_WORKSPACE}/${{matrix.target}}/settings.ini"
         echo "REPO_URL=${REPO_URL}" >> $GITHUB_ENV
         echo "REPO_BRANCH=${REPO_BRANCH}" >> $GITHUB_ENV
