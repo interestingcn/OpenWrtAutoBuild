@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [Newifi3-Lienol-withPASSWALL,Newifi3-Lienol-withSSRPLUS,Newifi3-Lean-withPASSWALL,Newifi3-Lean-withSSRPLUS,Lienol-x86]
+        target: [Newifi3-Lienol-withPASSWALL,Newifi3-Lienol-withSSRPLUS,Newifi3-Lienol-withVssr,Newifi3-Lean-withPASSWALL,Newifi3-Lean-withSSRPLUS,Newifi3-Lean-withVssr,Lienol-x86]
 
     steps:
     - name: 检出项目分支
