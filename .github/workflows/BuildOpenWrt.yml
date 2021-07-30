@@ -7,8 +7,9 @@
 name: Build OpenWrt
 on:
   workflow_dispatch:
-#  schedule:
-#    - cron: 00 19 * * *
+ schedule:
+  # 每周五晚十一点
+   - cron: 0 23 * * 5
 
 # 全局默认配置项
 env:
@@ -32,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [Newifi3-Lienol-withPASSWALL,Newifi3-Lienol-withSSRPLUS,Newifi3-Lean-withPASSWALL,Newifi3-Lean-withSSRPLUS,Lienol-x86,Lean-x86]
+        target: [Newifi3-Lienol-withPASSWALL,Newifi3-Lienol-withSSRPLUS,Newifi3-Lean-withPASSWALL,Newifi3-Lean-withSSRPLUS,Lean-x86]
 
     steps:
     - name: 检出项目分支
