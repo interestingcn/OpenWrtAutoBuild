@@ -12,7 +12,7 @@
 
 [![配置文件生成器状态](https://github.com/meloncn/OpenWrtAutoBuild/workflows/Generate%20Config%20File/badge.svg)](https://github.com/meloncn/OpenWrtAutoBuild/actions?query=workflow%3A%22Build+OpenWrt%22)
 
-[![我的知乎](https://img.shields.io/badge/dynamic/json?color=282c34&labelColor=0084ff&label=%E7%9F%A5%E4%B9%8E%E5%85%B3%E6%B3%A8&query=%24.data.totalSubs&url=https%3A%2F%2Fapi.spencerwoo.com%2Fsubstats%2F%3Fsource%3Dzhihu%26queryKey%3Dmelon-31-70&longCache=true)](https://www.zhihu.com/people/melon-31-70)
+[![我的知乎](https://img.shields.io/badge/dynamic/json?color=282c34&labelColor=0084ff&label=%E7%9F%A5%E4%B9%8E%E5%85%B3%E6%B3%A8&query=%24.data.totalSubs&url=https%3A%2F%2Fapi.spencerwoo.com%2Fsubstats%2F%3Fsource%3Dzhihu%26queryKey%3Dinterestingcn&longCache=true)](https://www.zhihu.com/people/interestingcn)
 
 
 
